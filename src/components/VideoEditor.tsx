@@ -269,6 +269,7 @@ export const VideoEditor = () => {
           clipName={aiEditingClip.name}
           startTime={aiEditingClip.startTime}
           endTime={aiEditingClip.endTime}
+          videoUrl={videoUrl}
         />
       )}
       

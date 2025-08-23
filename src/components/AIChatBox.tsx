@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, Send, Sparkles } from 'lucide-react';
+import { X, Send, Sparkles, Camera } from 'lucide-react';
 
 interface AIChatBoxProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface AIChatBoxProps {
   clipName: string;
   startTime: number;
   endTime: number;
+  videoUrl: string;
 }
 
 export const AIChatBox: React.FC<AIChatBoxProps> = ({
@@ -19,16 +20,71 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
   clipId,
   clipName,
   startTime,
-  endTime
+  endTime,
+  videoUrl
 }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [startFrame, setStartFrame] = useState<string | null>(null);
+  const [endFrame, setEndFrame] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const captureFrame = async (time: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.currentTime = time;
+      
+      video.onloadeddata = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (ctx) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(dataUrl);
+        }
+      };
+      
+      video.onerror = () => {
+        resolve(''); // Return empty string on error
+      };
+      
+      video.src = videoUrl;
+    });
+  };
+
+  const captureFrames = async () => {
+    setIsCapturing(true);
+    
+    try {
+      const startFrameData = await captureFrame(startTime);
+      const endFrameData = await captureFrame(endTime);
+      
+      setStartFrame(startFrameData);
+      setEndFrame(endFrameData);
+    } catch (error) {
+      console.error('Error capturing frames:', error);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && videoUrl) {
+      captureFrames();
+    }
+  }, [isOpen, videoUrl, startTime, endTime]);
 
   const handleSend = async () => {
     if (!message.trim()) return;
@@ -39,7 +95,9 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
     console.log('AI Edit Request:', {
       clipId,
       message: message.trim(),
-      timeRange: `${formatTime(startTime)} - ${formatTime(endTime)}`
+      timeRange: `${formatTime(startTime)} - ${formatTime(endTime)}`,
+      startFrame,
+      endFrame
     });
     
     // Simulate AI processing
@@ -84,6 +142,43 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
         
         <CardContent className="pt-0">
           <div className="space-y-3">
+            {/* Captured Frames */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Camera className="h-3 w-3" />
+                Captured Frames
+              </div>
+              
+              {isCapturing ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="text-xs text-muted-foreground">Capturing frames...</div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {startFrame && (
+                    <div className="space-y-1">
+                      <div className="text-xs text-muted-foreground text-center">Start Frame</div>
+                      <img 
+                        src={startFrame} 
+                        alt="Start frame" 
+                        className="w-full h-20 object-cover rounded border border-border"
+                      />
+                    </div>
+                  )}
+                  {endFrame && (
+                    <div className="space-y-1">
+                      <div className="text-xs text-muted-foreground text-center">End Frame</div>
+                      <img 
+                        src={endFrame} 
+                        alt="End frame" 
+                        className="w-full h-20 object-cover rounded border border-border"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
             {/* Chat messages would go here */}
             <div className="text-xs text-muted-foreground text-center py-2">
               Describe what you want to do with this video segment...
