@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Play, Pause, Scissors, Trash2, Sparkles } from 'lucide-react';
+import { Play, Pause, Scissors, Trash2, Sparkles, MousePointer } from 'lucide-react';
 import type { VideoClip } from './VideoEditor';
 
 interface TimelineProps {
@@ -44,10 +44,10 @@ export const Timeline: React.FC<TimelineProps> = ({
   const [dragStartTime, setDragStartTime] = useState(0);
   
   // Frame selection state
-  const [isSelectingFrames, setIsSelectingFrames] = useState(false);
+  const [isFrameSelectionMode, setIsFrameSelectionMode] = useState(false);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
-  const [isFrameSelectionMode, setIsFrameSelectionMode] = useState(false);
+  const [selectionPhase, setSelectionPhase] = useState<'start' | 'end' | null>(null);
 
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current || duration === 0 || isDragging) return;
@@ -56,70 +56,38 @@ export const Timeline: React.FC<TimelineProps> = ({
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
     const time = percentage * duration;
-    onSeek(Math.max(0, Math.min(duration, time)));
-  };
-
-  const handleTimelineMouseDown = (e: React.MouseEvent) => {
-    if (!timelineRef.current || duration === 0 || isDragging) return;
+    const clampedTime = Math.max(0, Math.min(duration, time));
     
-    if (isFrameSelectionMode) {
-      const rect = timelineRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = x / rect.width;
-      const time = percentage * duration;
-      const clampedTime = Math.max(0, Math.min(duration, time));
-      
-      setIsSelectingFrames(true);
-      setSelectionStart(clampedTime);
-      setSelectionEnd(clampedTime);
+    if (isFrameSelectionMode && selectionPhase) {
+      if (selectionPhase === 'start') {
+        setSelectionStart(clampedTime);
+        setSelectionPhase('end');
+        onSeek(clampedTime);
+      } else if (selectionPhase === 'end') {
+        setSelectionEnd(clampedTime);
+        setSelectionPhase(null);
+        onSeek(clampedTime);
+        // Don't auto-complete, wait for user to click "Select Section"
+      }
+    } else {
+      onSeek(clampedTime);
     }
   };
 
-  const handleTimelineMouseMove = (e: React.MouseEvent) => {
-    if (!timelineRef.current || duration === 0) return;
-    
-    if (isDragging && dragClipId) {
-      const deltaX = e.clientX - dragStartX;
-      const rect = timelineRef.current.getBoundingClientRect();
-      const deltaTime = (deltaX / rect.width) * duration;
-      const newStartTime = dragStartTime + deltaTime;
-      
-      onClipDrag(dragClipId, newStartTime);
-    }
-    
-    if (isSelectingFrames && selectionStart !== null) {
-      const rect = timelineRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = x / rect.width;
-      const time = percentage * duration;
-      const clampedTime = Math.max(0, Math.min(duration, time));
-      
-      setSelectionEnd(clampedTime);
-    }
-  };
-
-  const handleTimelineMouseUp = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      setDragClipId(null);
-    }
-    
-    if (isSelectingFrames && selectionStart !== null && selectionEnd !== null) {
+  const handleConfirmSelection = () => {
+    if (selectionStart !== null && selectionEnd !== null) {
       const start = Math.min(selectionStart, selectionEnd);
       const end = Math.max(selectionStart, selectionEnd);
       
       if (end - start > 0.5) { // Minimum 0.5 second selection
         onSelectFrameRange?.(start, end);
-        // toast({ // Assuming toast is available, otherwise remove this line
-        //   title: "Frame Range Selected",
-        //   description: `Selected ${formatTime(start)} - ${formatTime(end)} for AI editing`
-        // });
+        
+        // Reset selection mode
+        setIsFrameSelectionMode(false);
+        setSelectionStart(null);
+        setSelectionEnd(null);
+        setSelectionPhase(null);
       }
-      
-      setIsSelectingFrames(false);
-      setSelectionStart(null);
-      setSelectionEnd(null);
-      setIsFrameSelectionMode(false);
     }
   };
 
@@ -134,15 +102,34 @@ export const Timeline: React.FC<TimelineProps> = ({
     onClipSelect(clipId);
   };
 
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !dragClipId || !timelineRef.current || duration === 0) return;
+    
+    const deltaX = e.clientX - dragStartX;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const deltaTime = (deltaX / rect.width) * duration;
+    const newStartTime = dragStartTime + deltaTime;
+    
+    onClipDrag(dragClipId, newStartTime);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDragClipId(null);
+  };
+
   const handleEditWithAI = (clipId: string) => {
     // Enable frame selection mode
     setIsFrameSelectionMode(true);
+    setSelectionPhase('start');
+    setSelectionStart(null);
+    setSelectionEnd(null);
     onClipSelect(clipId);
   };
 
   const handleCancelFrameSelection = () => {
     setIsFrameSelectionMode(false);
-    setIsSelectingFrames(false);
+    setSelectionPhase(null);
     setSelectionStart(null);
     setSelectionEnd(null);
   };
@@ -210,20 +197,38 @@ export const Timeline: React.FC<TimelineProps> = ({
             <span className="ml-2 text-primary text-xs">EDITED</span>
           )}
           {isFrameSelectionMode && (
-            <span className="ml-2 text-primary text-xs">SELECT FRAMES</span>
+            <span className="ml-2 text-primary text-xs">
+              {selectionPhase === 'start' ? 'SELECT START' : 'SELECT END'}
+            </span>
           )}
         </div>
         
         <div className="ml-auto flex items-center gap-2">
           {isFrameSelectionMode && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCancelFrameSelection}
-              className="text-xs"
-            >
-              Cancel Selection
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelFrameSelection}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              {selectionStart !== null && selectionEnd !== null && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleConfirmSelection}
+                  className="text-xs bg-primary hover:bg-primary/90"
+                >
+                  Select Section
+                </Button>
+              )}
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <MousePointer className="h-3 w-3" />
+                Click to {selectionPhase === 'start' ? 'set start' : selectionPhase === 'end' ? 'set end' : 'confirm selection'}
+              </div>
+            </>
           )}
           <Button
             variant="ghost"
@@ -257,24 +262,47 @@ export const Timeline: React.FC<TimelineProps> = ({
           <div 
             ref={timelineRef}
             className={`h-16 bg-timeline-bg rounded-lg relative border border-border overflow-hidden ${
-              isFrameSelectionMode ? 'cursor-crosshair' : 'cursor-pointer'
+              isFrameSelectionMode ? 'cursor-pointer' : 'cursor-pointer'
             }`}
             onClick={handleTimelineClick}
-            onMouseDown={handleTimelineMouseDown}
-            onMouseMove={handleTimelineMouseMove}
-            onMouseUp={handleTimelineMouseUp}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
           >
             {/* Frame Selection Overlay */}
-            {isSelectingFrames && selectionStart !== null && selectionEnd !== null && (
+            {isFrameSelectionMode && selectionStart !== null && selectionEnd !== null && (
               <div
-                className="absolute top-1 bottom-1 bg-primary/20 border-2 border-primary/60 rounded pointer-events-none z-20"
+                className="absolute top-1 bottom-1 bg-blue-500/20 border-l-2 border-r-2 border-blue-400/60 pointer-events-none z-20"
                 style={{
                   left: `${selectionLeft}%`,
                   width: `${selectionWidth}%`
                 }}
               >
-                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs whitespace-nowrap">
+                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
                   {formatTime(Math.min(selectionStart, selectionEnd))} - {formatTime(Math.max(selectionStart, selectionEnd))}
+                </div>
+              </div>
+            )}
+
+            {/* Start Marker */}
+            {isFrameSelectionMode && selectionStart !== null && (
+              <div
+                className="absolute top-1 bottom-1 w-1 bg-green-500 pointer-events-none z-20"
+                style={{ left: `${selectionStartPosition}%` }}
+              >
+                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
+                  Start: {formatTime(selectionStart)}
+                </div>
+              </div>
+            )}
+
+            {/* End Marker */}
+            {isFrameSelectionMode && selectionEnd !== null && (
+              <div
+                className="absolute top-1 bottom-1 w-1 bg-red-500 pointer-events-none z-20"
+                style={{ left: `${selectionEndPosition}%` }}
+              >
+                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
+                  End: {formatTime(selectionEnd)}
                 </div>
               </div>
             )}
