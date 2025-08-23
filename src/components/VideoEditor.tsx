@@ -7,6 +7,7 @@ import { UploadArea } from './UploadArea';
 import { ExportDialog } from './ExportDialog';
 import { videoProcessor } from '../utils/videoProcessor';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 
 export interface VideoClip {
   id: string;
@@ -135,6 +136,24 @@ export const VideoEditor = () => {
     if (selectedClipId === clipId) {
       setSelectedClipId(null);
     }
+    
+    // Show toast to guide user to preview mode
+    toast({
+      title: "Clip Deleted",
+      description: "Switch to Preview Mode to see your edits in action!",
+      action: (
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => {
+            setPreviewMode(true);
+            setCurrentTime(0);
+          }}
+        >
+          Preview
+        </Button>
+      )
+    });
     
     console.log('✅ Delete operation completed');
   };

@@ -91,14 +91,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       } else {
         // We're in a deleted segment, skip to next clip
+        console.log('⏭️ In deleted segment, skipping to next clip');
         const nextClip = clips
           .filter(clip => clip.startTime > currentVideoTime)
           .sort((a, b) => a.startTime - b.startTime)[0];
           
         if (nextClip) {
+          console.log('🎬 Jumping to next clip at:', nextClip.startTime);
           video.currentTime = nextClip.startTime;
         } else {
           // No more clips, pause at end
+          console.log('🏁 No more clips, pausing at end');
           video.pause();
           const totalPreviewDuration = videoProcessor.getPreviewDuration(clips);
           onTimeUpdate(totalPreviewDuration);
