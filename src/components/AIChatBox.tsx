@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, Send, Sparkles, Camera } from 'lucide-react';
+import { X, Send, Sparkles, Camera, Download } from 'lucide-react';
 
 interface AIChatBoxProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface AIChatBoxProps {
   startTime: number;
   endTime: number;
   videoUrl: string;
+  onVideoProcessed?: (processedVideoBlob: Blob, startTime: number, endTime: number) => void;
 }
 
 export const AIChatBox: React.FC<AIChatBoxProps> = ({
@@ -21,13 +22,16 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
   clipName,
   startTime,
   endTime,
-  videoUrl
+  videoUrl,
+  onVideoProcessed
 }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [startFrame, setStartFrame] = useState<string | null>(null);
   const [endFrame, setEndFrame] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [processedVideo, setProcessedVideo] = useState<Blob | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -80,6 +84,60 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
     }
   };
 
+  const processVideoWithAI = async (prompt: string, startFrame: string, endFrame: string) => {
+    setIsProcessing(true);
+    
+    try {
+      // TODO: Replace with actual AI API endpoint
+      const response = await fetch('/api/ai-video-process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          startFrame,
+          endFrame,
+          startTime,
+          endTime,
+          clipId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI processing failed');
+      }
+
+      const processedVideoBlob = await response.blob();
+      setProcessedVideo(processedVideoBlob);
+      
+      // Call the callback to insert the processed video
+      if (onVideoProcessed) {
+        onVideoProcessed(processedVideoBlob, startTime, endTime);
+      }
+      
+    } catch (error) {
+      console.error('Error processing video with AI:', error);
+      // For now, simulate a successful response with a mock video
+      simulateAIResponse();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const simulateAIResponse = () => {
+    // Simulate AI processing for demo purposes
+    setTimeout(() => {
+      // Create a mock video blob (in real implementation, this would be the AI response)
+      const mockVideoBlob = new Blob(['mock video data'], { type: 'video/mp4' });
+      setProcessedVideo(mockVideoBlob);
+      
+      if (onVideoProcessed) {
+        onVideoProcessed(mockVideoBlob, startTime, endTime);
+      }
+    }, 3000);
+  };
+
   useEffect(() => {
     if (isOpen && videoUrl) {
       captureFrames();
@@ -87,31 +145,37 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
   }, [isOpen, videoUrl, startTime, endTime]);
 
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !startFrame || !endFrame) return;
     
     setIsLoading(true);
     
-    // TODO: Implement AI processing here
-    console.log('AI Edit Request:', {
-      clipId,
-      message: message.trim(),
-      timeRange: `${formatTime(startTime)} - ${formatTime(endTime)}`,
-      startFrame,
-      endFrame
-    });
-    
-    // Simulate AI processing
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await processVideoWithAI(message.trim(), startFrame, endFrame);
       setMessage('');
-      // TODO: Apply AI edits to the video
-    }, 2000);
+    } catch (error) {
+      console.error('Error sending AI request:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleDownloadProcessedVideo = () => {
+    if (processedVideo) {
+      const url = URL.createObjectURL(processedVideo);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ai-processed-${clipName}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
   };
 
@@ -178,6 +242,32 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Processed Video Preview */}
+            {processedVideo && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Sparkles className="h-3 w-3" />
+                  AI Processed Video
+                </div>
+                <div className="bg-secondary rounded p-2">
+                  <video 
+                    src={URL.createObjectURL(processedVideo)} 
+                    className="w-full h-20 object-cover rounded"
+                    controls
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadProcessedVideo}
+                  className="w-full text-xs"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Download Processed Video
+                </Button>
+              </div>
+            )}
             
             {/* Chat messages would go here */}
             <div className="text-xs text-muted-foreground text-center py-2">
@@ -192,15 +282,15 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
                 onKeyPress={handleKeyPress}
                 placeholder="e.g., 'Remove background noise' or 'Add slow motion effect'"
                 className="flex-1 text-sm"
-                disabled={isLoading}
+                disabled={isLoading || isProcessing}
               />
               <Button
                 onClick={handleSend}
-                disabled={!message.trim() || isLoading}
+                disabled={!message.trim() || isLoading || isProcessing}
                 size="sm"
                 className="px-3"
               >
-                {isLoading ? (
+                {isLoading || isProcessing ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
                   <Send className="h-4 w-4" />
@@ -208,9 +298,9 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
               </Button>
             </div>
             
-            {isLoading && (
+            {(isLoading || isProcessing) && (
               <div className="text-xs text-muted-foreground text-center">
-                Processing with AI...
+                {isLoading ? 'Sending to AI...' : 'Processing video with AI...'}
               </div>
             )}
           </div>

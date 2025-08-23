@@ -194,6 +194,84 @@ export const VideoEditor = () => {
     setAiEditingClip(null);
   };
 
+  const handleVideoProcessed = async (processedVideoBlob: Blob, startTime: number, endTime: number) => {
+    try {
+      // Create a new clip from the processed video
+      const processedVideoFile = new File([processedVideoBlob], `ai-processed-${Date.now()}.mp4`, {
+        type: 'video/mp4'
+      });
+      
+      const processedVideoUrl = URL.createObjectURL(processedVideoFile);
+      
+      // Find the original clip
+      const originalClipIndex = clips.findIndex(c => c.id === selectedClipId);
+      if (originalClipIndex === -1) return;
+      
+      const originalClip = clips[originalClipIndex];
+      
+      // Create new clips: before, processed, and after
+      const newClips: VideoClip[] = [];
+      
+      // Add clip before the processed section (if any)
+      if (startTime > originalClip.startTime) {
+        const beforeClip: VideoClip = {
+          ...originalClip,
+          id: `before-${Date.now()}`,
+          endTime: startTime,
+          duration: startTime - originalClip.startTime
+        };
+        newClips.push(beforeClip);
+      }
+      
+      // Add the processed video clip
+      const processedClip: VideoClip = {
+        id: `processed-${Date.now()}`,
+        name: `AI Processed (${originalClip.name})`,
+        url: processedVideoUrl,
+        startTime: startTime,
+        endTime: endTime,
+        duration: endTime - startTime,
+        position: startTime
+      };
+      newClips.push(processedClip);
+      
+      // Add clip after the processed section (if any)
+      if (endTime < originalClip.endTime) {
+        const afterClip: VideoClip = {
+          ...originalClip,
+          id: `after-${Date.now()}`,
+          startTime: endTime,
+          duration: originalClip.endTime - endTime,
+          position: endTime
+        };
+        newClips.push(afterClip);
+      }
+      
+      // Replace the original clip with the new clips
+      const updatedClips = [...clips];
+      updatedClips.splice(originalClipIndex, 1, ...newClips);
+      
+      setClips(updatedClips);
+      
+      // Select the processed clip
+      setSelectedClipId(processedClip.id);
+      
+      // Show success message
+      toast({
+        title: "AI Processing Complete",
+        description: "The processed video has been integrated into your timeline."
+      });
+      
+    } catch (error) {
+      console.error('Error integrating processed video:', error);
+      toast({
+        title: "Integration Failed",
+        description: "Failed to integrate the processed video into the timeline.",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Calculate effective duration and time based on preview mode
   const effectiveDuration = previewMode ? videoProcessor.getPreviewDuration(clips) : duration;
   const effectiveCurrentTime = previewMode 
@@ -270,6 +348,7 @@ export const VideoEditor = () => {
           startTime={aiEditingClip.startTime}
           endTime={aiEditingClip.endTime}
           videoUrl={videoUrl}
+          onVideoProcessed={handleVideoProcessed}
         />
       )}
       
