@@ -16,6 +16,7 @@ export interface VideoClip {
 }
 
 export const VideoEditor = () => {
+  console.log('VideoEditor component is rendering');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [clips, setClips] = useState<VideoClip[]>([]);
@@ -98,8 +99,13 @@ export const VideoEditor = () => {
     setClips(newClips);
   };
 
+  console.log('About to render VideoEditor JSX');
+  
   return (
-    <div className="h-screen bg-editor-bg flex flex-col">
+    <div className="h-screen bg-editor-bg flex flex-col" style={{ backgroundColor: '#1a1a1a' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 9999, background: 'red', color: 'white', padding: '10px' }}>
+        DEBUG: VideoEditor is rendering
+      </div>
       {/* Top Toolbar */}
       <ToolBar onCut={handleCut} canCut={!!selectedClipId} />
       
