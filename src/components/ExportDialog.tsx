@@ -2,21 +2,25 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Download, AlertCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Download, AlertCircle, Share2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DistributionPanel } from './DistributionPanel';
 
 interface ExportDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onExport: (onProgress: (progress: number) => void) => Promise<Blob>;
   fileName: string;
+  videoDuration: number;
 }
 
 export const ExportDialog: React.FC<ExportDialogProps> = ({
   isOpen,
   onClose,
   onExport,
-  fileName
+  fileName,
+  videoDuration
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -68,49 +72,70 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Export Video</DialogTitle>
+          <DialogTitle>Export & Distribute</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          {isExporting && (
-            <div className="space-y-2">
+        <Tabs defaultValue="export" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="export">
+              <Download className="w-4 h-4 mr-2" />
+              Export Video
+            </TabsTrigger>
+            <TabsTrigger value="distribute">
+              <Share2 className="w-4 h-4 mr-2" />
+              Share to Platforms
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="export" className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {isExporting && (
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  Processing video... This may take a few minutes.
+                </div>
+                <Progress value={progress} className="w-full" />
+                <div className="text-xs text-center text-muted-foreground">
+                  {progress.toFixed(0)}%
+                </div>
+              </div>
+            )}
+            
+            {exportedBlob && (
+              <div className="text-center space-y-2">
+                <div className="text-sm text-green-600">
+                  ✓ Video exported successfully!
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Size: {(exportedBlob.size / 1024 / 1024).toFixed(2)} MB
+                </div>
+              </div>
+            )}
+            
+            {!isExporting && !exportedBlob && !error && (
               <div className="text-sm text-muted-foreground">
-                Processing video... This may take a few minutes.
+                This will create a new video file with your edits applied. 
+                Deleted segments will be permanently removed.
               </div>
-              <Progress value={progress} className="w-full" />
-              <div className="text-xs text-center text-muted-foreground">
-                {progress.toFixed(0)}%
-              </div>
-            </div>
-          )}
-          
-          {exportedBlob && (
-            <div className="text-center space-y-2">
-              <div className="text-sm text-green-600">
-                ✓ Video exported successfully!
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Size: {(exportedBlob.size / 1024 / 1024).toFixed(2)} MB
-              </div>
-            </div>
-          )}
-          
-          {!isExporting && !exportedBlob && !error && (
-            <div className="text-sm text-muted-foreground">
-              This will create a new video file with your edits applied. 
-              Deleted segments will be permanently removed.
-            </div>
-          )}
-        </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="distribute" className="space-y-4">
+            <DistributionPanel
+              videoBlob={exportedBlob}
+              videoDuration={videoDuration}
+              fileName={fileName}
+            />
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={isExporting}>

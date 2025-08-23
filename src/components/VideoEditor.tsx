@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { VideoPlayer } from './VideoPlayer';
 import { Timeline } from './Timeline';
 import { MediaPanel } from './MediaPanel';
@@ -7,9 +7,12 @@ import { UploadArea } from './UploadArea';
 import { ExportDialog } from './ExportDialog';
 import { AIChatBox } from './AIChatBox';
 import { SubtitleDialog } from './SubtitleDialog';
+import { RecordingPanel } from './RecordingPanel';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { videoProcessor } from '../utils/videoProcessor';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { useRecordingStore } from '../stores/recordingStore';
 
 export interface VideoClip {
   id: string;
@@ -30,6 +33,7 @@ export const VideoEditor = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isRecordingDialogOpen, setIsRecordingDialogOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [aiEditingClip, setAiEditingClip] = useState<VideoClip | null>(null);
@@ -37,7 +41,59 @@ export const VideoEditor = () => {
   const [isAddingSubtitles, setIsAddingSubtitles] = useState(false);
   const { toast } = useToast();
 
+  // Debug preview mode changes
+  useEffect(() => {
+    console.log('Preview mode state changed:', {
+      previewMode,
+      hasClips: clips.length > 0,
+      clipsCount: clips.length
+    });
+  }, [previewMode, clips.length]);
+  
+  // Recording store
+  const { recordingUrl, recordingBlob, recordingState, resetRecording } = useRecordingStore();
+  
+  // Watch for completed recordings
+  useEffect(() => {
+    if (recordingBlob && recordingUrl && recordingState === 'idle') {
+      // Use the actual blob type and determine appropriate file extension
+      const blobType = recordingBlob.type || 'video/webm';
+      const extension = blobType.includes('mp4') ? 'mp4' : 'webm';
+      const fileName = `recording-${Date.now()}.${extension}`;
+      
+      console.log('Processing recorded file:', {
+        blobType,
+        extension,
+        fileName,
+        size: `${(recordingBlob.size / 1024 / 1024).toFixed(2)} MB`
+      });
+      
+      // Convert recording blob to File with correct type
+      const file = new File([recordingBlob], fileName, { type: blobType });
+      handleFileUpload(file);
+      
+      // Close the recording dialog
+      setIsRecordingDialogOpen(false);
+      
+      // Reset recording state after successful handoff
+      setTimeout(() => {
+        resetRecording();
+      }, 100);
+      
+      toast({
+        title: "Recording Ready",
+        description: `Your ${extension.toUpperCase()} recording has been loaded into the editor`
+      });
+    }
+  }, [recordingBlob, recordingUrl, recordingState, toast, resetRecording]);
+
   const handleFileUpload = (file: File) => {
+    console.log('handleFileUpload called with file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
+    
     setVideoFile(file);
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
@@ -52,7 +108,15 @@ export const VideoEditor = () => {
       endTime: 0,
       position: 0
     };
+    
+    console.log('Creating initial clip:', newClip);
     setClips([newClip]);
+    
+    console.log('Video state updated:', {
+      videoFile: file.name,
+      videoUrl: url,
+      clipsCount: 1
+    });
   };
 
   const handleVideoLoaded = (videoDuration: number) => {
@@ -79,13 +143,24 @@ export const VideoEditor = () => {
   };
 
   const handleTogglePreview = () => {
+    console.log('handleTogglePreview called:', {
+      currentPreviewMode: previewMode,
+      willToggleTo: !previewMode,
+      hasClips: clips.length > 0,
+      clipsCount: clips.length
+    });
+    
     setPreviewMode(!previewMode);
     setCurrentTime(0); // Reset to start when toggling
+    
+    const newMode = !previewMode;
+    console.log('Preview mode changed to:', newMode);
+    
     toast({
-      title: previewMode ? "Original Video" : "Edited Video",
-      description: previewMode 
-        ? "Showing original video with all segments" 
-        : "Showing edited video with deleted segments removed"
+      title: newMode ? "Edited Video" : "Original Video",
+      description: newMode 
+        ? "Showing edited video with deleted segments removed"
+        : "Showing original video with all segments"
     });
   };
 
@@ -345,6 +420,7 @@ export const VideoEditor = () => {
         onCut={handleCut} 
         canCut={!!selectedClipId}
         onExport={() => setIsExportDialogOpen(true)}
+        onRecord={() => setIsRecordingDialogOpen(true)}
         onTogglePreview={handleTogglePreview}
         previewMode={previewMode}
         hasClips={clips.length > 0}
@@ -430,7 +506,18 @@ export const VideoEditor = () => {
         onClose={() => setIsExportDialogOpen(false)}
         onExport={handleExport}
         fileName={videoFile?.name || 'video'}
+        videoDuration={effectiveDuration}
       />
+      
+      {/* Recording Dialog */}
+      <Dialog open={isRecordingDialogOpen} onOpenChange={setIsRecordingDialogOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Recording Studio</DialogTitle>
+          </DialogHeader>
+          <RecordingPanel />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

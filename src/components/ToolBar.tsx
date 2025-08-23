@@ -1,13 +1,14 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Scissors, Download, Eye, EyeOff, Subtitles } from 'lucide-react';
+import { Scissors, Download, Eye, EyeOff, Subtitles, Video } from 'lucide-react';
 
 interface ToolBarProps {
   onCut: () => void;
   canCut: boolean;
   onExport: () => void;
   onTogglePreview: () => void;
+  onRecord?: () => void;
   previewMode: boolean;
   hasClips: boolean;
   onAddSubtitles: () => void;
@@ -18,7 +19,8 @@ export const ToolBar: React.FC<ToolBarProps> = ({
   onCut, 
   canCut, 
   onExport, 
-  onTogglePreview, 
+  onTogglePreview,
+  onRecord, 
   previewMode, 
   hasClips,
   onAddSubtitles,
@@ -27,6 +29,22 @@ export const ToolBar: React.FC<ToolBarProps> = ({
   return (
     <div className="h-12 bg-editor-panel border-b border-border px-4 flex items-center gap-2">
       <div className="flex items-center gap-2">
+        {onRecord && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRecord}
+              className="text-foreground hover:bg-secondary"
+            >
+              <Video className="h-4 w-4 mr-2" />
+              Record
+            </Button>
+            
+            <Separator orientation="vertical" className="h-6" />
+          </>
+        )}
+        
         <Button
           variant="ghost"
           size="sm"
@@ -42,9 +60,16 @@ export const ToolBar: React.FC<ToolBarProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          onClick={onTogglePreview}
+          onClick={() => {
+            console.log('Preview button clicked:', {
+              previewMode,
+              hasClips,
+              disabled: !hasClips
+            });
+            onTogglePreview();
+          }}
           disabled={!hasClips}
-          className="text-foreground hover:bg-secondary"
+          className={`text-foreground hover:bg-secondary ${!hasClips ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${previewMode ? 'bg-secondary' : ''}`}
         >
           {previewMode ? (
             <>

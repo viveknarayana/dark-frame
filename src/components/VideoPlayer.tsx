@@ -126,7 +126,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      onVideoLoaded(videoRef.current.duration);
+      const duration = videoRef.current.duration;
+      console.log('Video loaded in player:', {
+        duration,
+        videoUrl,
+        videoWidth: videoRef.current.videoWidth,
+        videoHeight: videoRef.current.videoHeight
+      });
+      onVideoLoaded(duration);
     }
   };
 

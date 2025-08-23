@@ -49,6 +49,22 @@ export const Timeline: React.FC<TimelineProps> = ({
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const [selectionPhase, setSelectionPhase] = useState<'start' | 'end' | null>(null);
 
+  // Debug clips changes
+  useEffect(() => {
+    console.log('Timeline clips updated:', {
+      clipsCount: clips.length,
+      clips: clips.map(clip => ({
+        id: clip.id,
+        name: clip.name,
+        duration: clip.duration,
+        startTime: clip.startTime,
+        endTime: clip.endTime
+      })),
+      duration,
+      currentTime
+    });
+  }, [clips, duration, currentTime]);
+
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current || duration === 0 || isDragging) return;
     
