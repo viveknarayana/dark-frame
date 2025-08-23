@@ -20,7 +20,6 @@ export interface VideoClip {
 }
 
 export const VideoEditor = () => {
-  console.log('VideoEditor component is rendering');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [clips, setClips] = useState<VideoClip[]>([]);
@@ -77,10 +76,10 @@ export const VideoEditor = () => {
     setPreviewMode(!previewMode);
     setCurrentTime(0); // Reset to start when toggling
     toast({
-      title: previewMode ? "Original Mode" : "Preview Mode",
+      title: previewMode ? "Original Video" : "Edited Video",
       description: previewMode 
         ? "Showing original video with all segments" 
-        : "Showing preview with deleted segments removed"
+        : "Showing edited video with deleted segments removed"
     });
   };
 
@@ -126,36 +125,30 @@ export const VideoEditor = () => {
   };
 
   const handleDeleteClip = (clipId: string) => {
-    console.log('🗑️ Delete clip called with ID:', clipId);
-    console.log('📋 Current clips before delete:', clips);
-    
     const newClips = clips.filter(clip => clip.id !== clipId);
-    console.log('📋 New clips after filter:', newClips);
     
     setClips(newClips);
     if (selectedClipId === clipId) {
       setSelectedClipId(null);
     }
     
-    // Show toast to guide user to preview mode
-    toast({
-      title: "Clip Deleted",
-      description: "Switch to Preview Mode to see your edits in action!",
-      action: (
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => {
-            setPreviewMode(true);
-            setCurrentTime(0);
-          }}
-        >
-          Preview
-        </Button>
-      )
-    });
-    
-    console.log('✅ Delete operation completed');
+    // If no clips remain, reset to original mode
+    if (newClips.length === 0) {
+      setPreviewMode(false);
+      setCurrentTime(0);
+      toast({
+        title: "All Clips Deleted",
+        description: "No clips remaining. Upload a new video or add clips to continue editing."
+      });
+    } else {
+      // Automatically show the edited video (with deleted clips removed)
+      setPreviewMode(true);
+      setCurrentTime(0);
+      toast({
+        title: "Clip Deleted",
+        description: "Showing edited video with deleted segments removed."
+      });
+    }
   };
 
   const handleClipDrag = (clipId: string, newStartTime: number) => {
@@ -177,14 +170,9 @@ export const VideoEditor = () => {
   const effectiveCurrentTime = previewMode 
     ? Math.min(currentTime, effectiveDuration)
     : currentTime;
-
-  console.log('About to render VideoEditor JSX');
   
   return (
     <div className="h-screen bg-editor-bg flex flex-col" style={{ backgroundColor: '#1a1a1a' }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 9999, background: 'red', color: 'white', padding: '10px' }}>
-        DEBUG: VideoEditor is rendering
-      </div>
       {/* Top Toolbar */}
       <ToolBar 
         onCut={handleCut} 
@@ -205,16 +193,18 @@ export const VideoEditor = () => {
         {/* Center - Video Player */}
         <div className="flex-1 flex flex-col">
           {videoUrl ? (
-            <VideoPlayer
-              videoUrl={videoUrl}
-              isPlaying={isPlaying}
-              currentTime={effectiveCurrentTime}
-              onTimeUpdate={handleTimeUpdate}
-              onVideoLoaded={handleVideoLoaded}
-              onSeek={handleSeek}
-              clips={clips}
-              previewMode={previewMode}
-            />
+            <div className="h-[calc(100vh-12rem)] bg-editor-viewer">
+              <VideoPlayer
+                videoUrl={videoUrl}
+                isPlaying={isPlaying}
+                currentTime={effectiveCurrentTime}
+                onTimeUpdate={handleTimeUpdate}
+                onVideoLoaded={handleVideoLoaded}
+                onSeek={handleSeek}
+                clips={clips}
+                previewMode={previewMode}
+              />
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <UploadArea onFileUpload={handleFileUpload} />

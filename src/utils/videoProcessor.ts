@@ -34,70 +34,96 @@ class VideoProcessor {
       throw new Error('FFmpeg failed to initialize');
     }
 
-    // Sort clips by start time
-    const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime);
-
-    // Write input file
-    await this.ffmpeg.writeFile('input.mp4', await fetchFile(videoFile));
-
-    // Create filter complex for concatenation
-    let filterComplex = '';
-    let inputs = '';
-    
-    for (let i = 0; i < sortedClips.length; i++) {
-      const clip = sortedClips[i];
-      const duration = clip.endTime - clip.startTime;
-      
-      // Extract each clip segment
-      await this.ffmpeg.exec([
-        '-i', 'input.mp4',
-        '-ss', clip.startTime.toString(),
-        '-t', duration.toString(),
-        '-c', 'copy',
-        `segment_${i}.mp4`
-      ]);
-      
-      inputs += `[${i}:v][${i}:a]`;
-      filterComplex += `[${i}:v][${i}:a]`;
+    if (clips.length === 0) {
+      throw new Error('No clips to export. Please add at least one clip before exporting.');
     }
 
-    if (sortedClips.length === 1) {
-      // Single clip, just copy
+    try {
+      // Sort clips by start time
+      const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime);
+
+      // Write input file
+      await this.ffmpeg.writeFile('input.mp4', await fetchFile(videoFile));
+      
+      if (onProgress) {
+        onProgress(10);
+      }
+
+      // Create individual clip segments
+      const segmentFiles = [];
+      for (let i = 0; i < sortedClips.length; i++) {
+        const clip = sortedClips[i];
+        const duration = clip.endTime - clip.startTime;
+        const segmentFile = `segment_${i}.mp4`;
+        
+        await this.ffmpeg.exec([
+          '-i', 'input.mp4',
+          '-ss', clip.startTime.toString(),
+          '-t', duration.toString(),
+          '-c', 'copy',
+          segmentFile
+        ]);
+        
+        segmentFiles.push(segmentFile);
+        
+        if (onProgress) {
+          const progress = 10 + ((i + 1) / sortedClips.length) * 70; // 10% to 80%
+          onProgress(progress);
+        }
+      }
+
+      // Create concat file for FFmpeg
+      const concatContent = segmentFiles.map(file => `file '${file}'`).join('\n');
+      await this.ffmpeg.writeFile('concat.txt', concatContent);
+
+      if (onProgress) {
+        onProgress(85);
+      }
+
+      // Concatenate all segments
       await this.ffmpeg.exec([
-        '-i', `segment_0.mp4`,
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', 'concat.txt',
         '-c', 'copy',
         'output.mp4'
       ]);
-    } else {
-      // Multiple clips, concatenate
-      const concatInputs = sortedClips.map((_, i) => ['-i', `segment_${i}.mp4`]).flat();
-      const concatFilter = sortedClips.map((_, i) => `[${i}:v][${i}:a]`).join('') + `concat=n=${sortedClips.length}:v=1:a=1[outv][outa]`;
-      
-      await this.ffmpeg.exec([
-        ...concatInputs,
-        '-filter_complex', concatFilter,
-        '-map', '[outv]',
-        '-map', '[outa]',
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        'output.mp4'
-      ]);
-    }
 
-    // Read output file
-    const data = await this.ffmpeg.readFile('output.mp4');
-    
-    // Clean up
-    const filesToDelete = ['input.mp4', 'output.mp4', ...sortedClips.map((_, i) => `segment_${i}.mp4`)];
-    for (const file of filesToDelete) {
+      if (onProgress) {
+        onProgress(95);
+      }
+
+      // Read output file
+      const data = await this.ffmpeg.readFile('output.mp4');
+      
+      // Clean up
+      const filesToDelete = ['input.mp4', 'output.mp4', 'concat.txt', ...segmentFiles];
+      for (const file of filesToDelete) {
+        try {
+          await this.ffmpeg.deleteFile(file);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+
+      if (onProgress) {
+        onProgress(100);
+      }
+
+      return new Blob([data], { type: 'video/mp4' });
+    } catch (error) {
+      // Clean up on error
       try {
-        await this.ffmpeg.deleteFile(file);
+        const filesToDelete = ['input.mp4', 'output.mp4', 'concat.txt'];
+        for (const file of filesToDelete) {
+          await this.ffmpeg?.deleteFile(file);
+        }
       } catch (e) {
         // Ignore cleanup errors
       }
+      
+      throw new Error(`Video processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return new Blob([data], { type: 'video/mp4' });
   }
 
   // Create a virtual concatenated video for preview

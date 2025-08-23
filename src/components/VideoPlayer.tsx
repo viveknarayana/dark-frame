@@ -91,17 +91,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       } else {
         // We're in a deleted segment, skip to next clip
-        console.log('⏭️ In deleted segment, skipping to next clip');
         const nextClip = clips
           .filter(clip => clip.startTime > currentVideoTime)
           .sort((a, b) => a.startTime - b.startTime)[0];
           
         if (nextClip) {
-          console.log('🎬 Jumping to next clip at:', nextClip.startTime);
           video.currentTime = nextClip.startTime;
         } else {
           // No more clips, pause at end
-          console.log('🏁 No more clips, pausing at end');
           video.pause();
           const totalPreviewDuration = videoProcessor.getPreviewDuration(clips);
           onTimeUpdate(totalPreviewDuration);
@@ -110,6 +107,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } else {
       // Original mode - direct time update
       onTimeUpdate(video.currentTime);
+    }
+  };
+
+  // Handle video end in preview mode
+  const handleVideoEnded = () => {
+    if (previewMode && clips.length > 0) {
+      // In preview mode, loop back to the first clip
+      const firstClip = clips.sort((a, b) => a.startTime - b.startTime)[0];
+      if (firstClip) {
+        videoRef.current!.currentTime = firstClip.startTime;
+        if (isPlaying) {
+          videoRef.current!.play();
+        }
+      }
     }
   };
 
@@ -131,10 +142,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-editor-viewer relative flex items-center justify-center">
+    <div className="h-full bg-editor-viewer relative flex items-center justify-center">
       {previewMode && (
         <div className="absolute top-4 left-4 bg-primary text-primary-foreground px-3 py-1 rounded-md text-sm font-medium z-10">
-          Preview Mode
+          Edited Video
         </div>
       )}
       
@@ -144,6 +155,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         className="max-w-full max-h-full object-contain cursor-pointer"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleVideoEnded}
         onClick={handleVideoClick}
         preload="metadata"
       />

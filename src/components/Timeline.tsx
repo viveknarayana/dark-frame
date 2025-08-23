@@ -130,7 +130,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         <div className="text-sm font-mono text-muted-foreground">
           {formatTime(currentTime)} / {formatTime(duration)}
           {previewMode && (
-            <span className="ml-2 text-primary text-xs">PREVIEW</span>
+            <span className="ml-2 text-primary text-xs">EDITED</span>
           )}
         </div>
         
@@ -172,71 +172,79 @@ export const Timeline: React.FC<TimelineProps> = ({
             onMouseUp={handleMouseUp}
           >
             {/* Video Clips */}
-            {clips.map((clip) => {
-              const clipWidth = duration > 0 ? ((clip.endTime - clip.startTime) / duration) * 100 : 0;
-              const clipLeft = duration > 0 ? (clip.startTime / duration) * 100 : 0;
-              
-              return (
-                <ContextMenu key={clip.id}>
-                  <ContextMenuTrigger asChild>
-                    <div
-                      className={`absolute top-1 h-14 rounded cursor-grab active:cursor-grabbing border-2 transition-all duration-200 ${
-                        selectedClipId === clip.id
-                          ? 'bg-editor-clip-selected border-primary'
-                          : 'bg-editor-clip border-border hover:border-primary/50'
-                      } ${isDragging && dragClipId === clip.id ? 'z-10' : ''}`}
-                      style={{
-                        left: `${clipLeft}%`,
-                        width: `${clipWidth}%`
-                      }}
-                      onMouseDown={(e) => handleClipMouseDown(e, clip.id, clip.startTime)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!isDragging) {
+            {clips.length > 0 ? (
+              clips.map((clip) => {
+                const clipWidth = duration > 0 ? ((clip.endTime - clip.startTime) / duration) * 100 : 0;
+                const clipLeft = duration > 0 ? (clip.startTime / duration) * 100 : 0;
+                
+                return (
+                  <ContextMenu key={clip.id}>
+                    <ContextMenuTrigger asChild>
+                      <div
+                        className={`absolute top-1 h-14 rounded cursor-grab active:cursor-grabbing border-2 transition-all duration-200 ${
+                          selectedClipId === clip.id
+                            ? 'bg-editor-clip-selected border-primary'
+                            : 'bg-editor-clip border-border hover:border-primary/50'
+                        } ${isDragging && dragClipId === clip.id ? 'z-10' : ''}`}
+                        style={{
+                          left: `${clipLeft}%`,
+                          width: `${clipWidth}%`
+                        }}
+                        onMouseDown={(e) => handleClipMouseDown(e, clip.id, clip.startTime)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isDragging) {
+                            onClipSelect(clip.id);
+                          }
+                        }}
+                      >
+                        <div className="p-2 h-full flex flex-col justify-between">
+                          <div className="text-xs text-white font-medium truncate">
+                            {clip.name}
+                          </div>
+                          <div className="text-xs text-white/60">
+                            {formatTime(clip.duration)}
+                          </div>
+                        </div>
+                        
+                        {/* Waveform visualization placeholder */}
+                        <div className="absolute bottom-1 left-2 right-2 h-4 bg-editor-waveform/30 rounded-sm">
+                          <div className="h-full bg-gradient-to-r from-primary/40 to-primary/20 rounded-sm" />
+                        </div>
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-48">
+                      <ContextMenuItem 
+                        onClick={() => {
                           onClipSelect(clip.id);
-                        }
-                      }}
-                    >
-                      <div className="p-2 h-full flex flex-col justify-between">
-                        <div className="text-xs text-white font-medium truncate">
-                          {clip.name}
-                        </div>
-                        <div className="text-xs text-white/60">
-                          {formatTime(clip.duration)}
-                        </div>
-                      </div>
-                      
-                      {/* Waveform visualization placeholder */}
-                      <div className="absolute bottom-1 left-2 right-2 h-4 bg-editor-waveform/30 rounded-sm">
-                        <div className="h-full bg-gradient-to-r from-primary/40 to-primary/20 rounded-sm" />
-                      </div>
-                    </div>
-                  </ContextMenuTrigger>
-                  <ContextMenuContent className="w-48">
-                    <ContextMenuItem 
-                      onClick={() => {
-                        onClipSelect(clip.id);
-                        onCut();
-                      }}
-                      disabled={selectedClipId !== clip.id || currentTime <= clip.startTime || currentTime >= clip.endTime}
-                    >
-                      <Scissors className="mr-2 h-4 w-4" />
-                      Cut at playhead
-                    </ContextMenuItem>
-                    <ContextMenuItem 
-                      onClick={() => {
-                        console.log('🖱️ Context menu delete clicked for clip:', clip.id);
-                        onDeleteClip(clip.id);
-                      }}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete clip
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
-              );
-            })}
+                          onCut();
+                        }}
+                        disabled={selectedClipId !== clip.id || currentTime <= clip.startTime || currentTime >= clip.endTime}
+                      >
+                        <Scissors className="mr-2 h-4 w-4" />
+                        Cut at playhead
+                      </ContextMenuItem>
+                      <ContextMenuItem 
+                        onClick={() => {
+                          onDeleteClip(clip.id);
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete clip
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                );
+              })
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center text-muted-foreground">
+                  <div className="text-sm font-medium mb-1">No clips available</div>
+                  <div className="text-xs">Upload a video to get started</div>
+                </div>
+              </div>
+            )}
 
             {/* Playhead */}
             <div

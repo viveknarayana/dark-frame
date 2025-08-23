@@ -45,12 +45,12 @@ export const ToolBar: React.FC<ToolBarProps> = ({
           {previewMode ? (
             <>
               <EyeOff className="h-4 w-4 mr-2" />
-              Original
+              Show Original
             </>
           ) : (
             <>
               <Eye className="h-4 w-4 mr-2" />
-              Preview
+              Show Edited
             </>
           )}
         </Button>
