@@ -4,6 +4,9 @@ import { Timeline } from './Timeline';
 import { MediaPanel } from './MediaPanel';
 import { ToolBar } from './ToolBar';
 import { UploadArea } from './UploadArea';
+import { ExportDialog } from './ExportDialog';
+import { videoProcessor } from '../utils/videoProcessor';
+import { useToast } from '@/hooks/use-toast';
 
 export interface VideoClip {
   id: string;
@@ -24,6 +27,9 @@ export const VideoEditor = () => {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
+  const { toast } = useToast();
 
   const handleFileUpload = (file: File) => {
     setVideoFile(file);
@@ -64,6 +70,25 @@ export const VideoEditor = () => {
 
   const handleSeek = (time: number) => {
     setCurrentTime(time);
+  };
+
+  const handleTogglePreview = () => {
+    setPreviewMode(!previewMode);
+    setCurrentTime(0); // Reset to start when toggling
+    toast({
+      title: previewMode ? "Original Mode" : "Preview Mode",
+      description: previewMode 
+        ? "Showing original video with all segments" 
+        : "Showing preview with deleted segments removed"
+    });
+  };
+
+  const handleExport = async (onProgress: (progress: number) => void): Promise<Blob> => {
+    if (!videoFile || clips.length === 0) {
+      throw new Error('No video or clips to export');
+    }
+
+    return await videoProcessor.trimVideo(videoFile, clips, onProgress);
   };
 
   const handleCut = () => {
@@ -120,6 +145,12 @@ export const VideoEditor = () => {
     }));
   };
 
+  // Calculate effective duration and time based on preview mode
+  const effectiveDuration = previewMode ? videoProcessor.getPreviewDuration(clips) : duration;
+  const effectiveCurrentTime = previewMode 
+    ? Math.min(currentTime, effectiveDuration)
+    : currentTime;
+
   console.log('About to render VideoEditor JSX');
   
   return (
@@ -128,7 +159,14 @@ export const VideoEditor = () => {
         DEBUG: VideoEditor is rendering
       </div>
       {/* Top Toolbar */}
-      <ToolBar onCut={handleCut} canCut={!!selectedClipId} />
+      <ToolBar 
+        onCut={handleCut} 
+        canCut={!!selectedClipId}
+        onExport={() => setIsExportDialogOpen(true)}
+        onTogglePreview={handleTogglePreview}
+        previewMode={previewMode}
+        hasClips={clips.length > 0}
+      />
       
       <div className="flex-1 flex">
         {/* Left Panel - Media */}
@@ -143,10 +181,12 @@ export const VideoEditor = () => {
             <VideoPlayer
               videoUrl={videoUrl}
               isPlaying={isPlaying}
-              currentTime={currentTime}
+              currentTime={effectiveCurrentTime}
               onTimeUpdate={handleTimeUpdate}
               onVideoLoaded={handleVideoLoaded}
               onSeek={handleSeek}
+              clips={clips}
+              previewMode={previewMode}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">
@@ -159,8 +199,8 @@ export const VideoEditor = () => {
       {/* Bottom Timeline */}
       <Timeline
         clips={clips}
-        duration={duration}
-        currentTime={currentTime}
+        duration={effectiveDuration}
+        currentTime={effectiveCurrentTime}
         selectedClipId={selectedClipId}
         onSeek={handleSeek}
         onClipSelect={setSelectedClipId}
@@ -169,6 +209,15 @@ export const VideoEditor = () => {
         onCut={handleCut}
         onDeleteClip={handleDeleteClip}
         onClipDrag={handleClipDrag}
+        previewMode={previewMode}
+      />
+      
+      {/* Export Dialog */}
+      <ExportDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        onExport={handleExport}
+        fileName={videoFile?.name || 'video'}
       />
     </div>
   );

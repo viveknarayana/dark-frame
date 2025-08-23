@@ -16,6 +16,7 @@ interface TimelineProps {
   onCut: () => void;
   onDeleteClip: (clipId: string) => void;
   onClipDrag: (clipId: string, newStartTime: number) => void;
+  previewMode: boolean;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -29,7 +30,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   isPlaying,
   onCut,
   onDeleteClip,
-  onClipDrag
+  onClipDrag,
+  previewMode
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -127,6 +129,9 @@ export const Timeline: React.FC<TimelineProps> = ({
         
         <div className="text-sm font-mono text-muted-foreground">
           {formatTime(currentTime)} / {formatTime(duration)}
+          {previewMode && (
+            <span className="ml-2 text-primary text-xs">PREVIEW</span>
+          )}
         </div>
         
         <div className="ml-auto flex items-center gap-2">

@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { videoProcessor } from '../utils/videoProcessor';
+import type { VideoClip } from './VideoEditor';
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -9,6 +9,8 @@ interface VideoPlayerProps {
   onTimeUpdate: (time: number) => void;
   onVideoLoaded: (duration: number) => void;
   onSeek: (time: number) => void;
+  clips: VideoClip[];
+  previewMode: boolean;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -17,99 +19,131 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   currentTime,
   onTimeUpdate,
   onVideoLoaded,
-  onSeek
+  onSeek,
+  clips,
+  previewMode
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState(0);
 
+  // Handle play/pause
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
+    if (!videoRef.current) return;
+    
     if (isPlaying) {
-      video.play();
+      videoRef.current.play();
     } else {
-      video.pause();
+      videoRef.current.pause();
     }
   }, [isPlaying]);
 
+  // Handle seeking
   useEffect(() => {
+    if (!videoRef.current) return;
+    
     const video = videoRef.current;
-    if (!video) return;
+    
+    if (previewMode && clips.length > 0) {
+      // In preview mode, convert preview time to original video time
+      const originalTime = videoProcessor.getOriginalTime(currentTime, clips);
+      if (Math.abs(video.currentTime - originalTime) > 0.5) {
+        video.currentTime = originalTime;
+      }
+    } else {
+      // In original mode, use time directly
+      if (Math.abs(video.currentTime - currentTime) > 0.5) {
+        video.currentTime = currentTime;
+      }
+    }
+  }, [currentTime, previewMode, clips]);
 
-    video.currentTime = currentTime;
-  }, [currentTime]);
+  // Handle time updates with preview mode logic
+  const handleTimeUpdate = () => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
+    const now = Date.now();
+    
+    // Throttle updates to avoid too frequent calls
+    if (now - lastUpdateTime < 100) return;
+    setLastUpdateTime(now);
+    
+    if (previewMode && clips.length > 0) {
+      // In preview mode, we need to check if we're in a valid clip segment
+      const currentVideoTime = video.currentTime;
+      
+      // Find which clip (if any) contains the current time
+      const currentClip = clips.find(clip => 
+        currentVideoTime >= clip.startTime && currentVideoTime <= clip.endTime
+      );
+      
+      if (currentClip) {
+        // We're in a valid clip, calculate preview time
+        const segments = videoProcessor.createPreviewSegments(clips);
+        const segment = segments.find(seg => 
+          seg.originalStart <= currentVideoTime && seg.originalEnd >= currentVideoTime
+        );
+        
+        if (segment) {
+          const segmentOffset = currentVideoTime - segment.originalStart;
+          const previewTime = segment.startTime + segmentOffset;
+          onTimeUpdate(previewTime);
+        }
+      } else {
+        // We're in a deleted segment, skip to next clip
+        const nextClip = clips
+          .filter(clip => clip.startTime > currentVideoTime)
+          .sort((a, b) => a.startTime - b.startTime)[0];
+          
+        if (nextClip) {
+          video.currentTime = nextClip.startTime;
+        } else {
+          // No more clips, pause at end
+          video.pause();
+          const totalPreviewDuration = videoProcessor.getPreviewDuration(clips);
+          onTimeUpdate(totalPreviewDuration);
+        }
+      }
+    } else {
+      // Original mode - direct time update
+      onTimeUpdate(video.currentTime);
+    }
+  };
 
   const handleLoadedMetadata = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    onVideoLoaded(video.duration);
+    if (videoRef.current) {
+      onVideoLoaded(videoRef.current.duration);
+    }
   };
 
-  const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    onTimeUpdate(video.currentTime);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const handleVideoClick = () => {
+    // Toggle play/pause on click
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+      } else {
+        videoRef.current.pause();
+      }
+    }
   };
 
   return (
-    <div className="flex-1 bg-gradient-panel p-6">
-      <div className="h-full flex flex-col">
-        {/* Video Container */}
-        <div className="flex-1 bg-black rounded-lg overflow-hidden relative">
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            className="w-full h-full object-contain"
-            onLoadedMetadata={handleLoadedMetadata}
-            onTimeUpdate={handleTimeUpdate}
-          />
-          
-          {/* Video Overlay Controls */}
-          <div className="absolute bottom-4 left-4 right-4">
-            <div className="bg-black/60 backdrop-blur-sm rounded-lg p-3 flex items-center gap-3">
-              <span className="text-white text-sm font-mono">
-                {formatTime(currentTime)}
-              </span>
-              
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
-                  <SkipBack className="h-4 w-4" />
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-white hover:bg-white/20"
-                  onClick={() => onSeek(isPlaying ? currentTime : currentTime)}
-                >
-                  {isPlaying ? (
-                    <Pause className="h-4 w-4" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                </Button>
-                
-                <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
-                  <SkipForward className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="flex items-center gap-2 ml-auto">
-                <Volume2 className="h-4 w-4 text-white" />
-                <div className="w-16 h-1 bg-white/30 rounded-full">
-                  <div className="w-3/4 h-full bg-white rounded-full" />
-                </div>
-              </div>
-            </div>
-          </div>
+    <div className="flex-1 bg-editor-viewer relative flex items-center justify-center">
+      {previewMode && (
+        <div className="absolute top-4 left-4 bg-primary text-primary-foreground px-3 py-1 rounded-md text-sm font-medium z-10">
+          Preview Mode
         </div>
-      </div>
+      )}
+      
+      <video
+        ref={videoRef}
+        src={videoUrl}
+        className="max-w-full max-h-full object-contain cursor-pointer"
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onClick={handleVideoClick}
+        preload="metadata"
+      />
     </div>
   );
 };
