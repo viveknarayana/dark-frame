@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Scissors, Download, Eye, EyeOff } from 'lucide-react';
+import { Scissors, Download, Eye, EyeOff, Subtitles } from 'lucide-react';
 
 interface ToolBarProps {
   onCut: () => void;
@@ -10,6 +10,8 @@ interface ToolBarProps {
   onTogglePreview: () => void;
   previewMode: boolean;
   hasClips: boolean;
+  onAddSubtitles: () => void;
+  isAddingSubtitles: boolean;
 }
 
 export const ToolBar: React.FC<ToolBarProps> = ({ 
@@ -18,7 +20,9 @@ export const ToolBar: React.FC<ToolBarProps> = ({
   onExport, 
   onTogglePreview, 
   previewMode, 
-  hasClips 
+  hasClips,
+  onAddSubtitles,
+  isAddingSubtitles
 }) => {
   return (
     <div className="h-12 bg-editor-panel border-b border-border px-4 flex items-center gap-2">
@@ -51,6 +55,28 @@ export const ToolBar: React.FC<ToolBarProps> = ({
             <>
               <Eye className="h-4 w-4 mr-2" />
               Show Edited
+            </>
+          )}
+        </Button>
+
+        <Separator orientation="vertical" className="h-6" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onAddSubtitles}
+          disabled={!hasClips || isAddingSubtitles}
+          className="text-foreground hover:bg-secondary"
+        >
+          {isAddingSubtitles ? (
+            <>
+              <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Transcribing...
+            </>
+          ) : (
+            <>
+              <Subtitles className="h-4 w-4 mr-2" />
+              Add Subtitles
             </>
           )}
         </Button>

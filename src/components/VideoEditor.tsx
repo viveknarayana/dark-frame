@@ -6,6 +6,7 @@ import { ToolBar } from './ToolBar';
 import { UploadArea } from './UploadArea';
 import { ExportDialog } from './ExportDialog';
 import { AIChatBox } from './AIChatBox';
+import { SubtitleDialog } from './SubtitleDialog';
 import { videoProcessor } from '../utils/videoProcessor';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,8 @@ export const VideoEditor = () => {
   const [previewMode, setPreviewMode] = useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [aiEditingClip, setAiEditingClip] = useState<VideoClip | null>(null);
+  const [isSubtitleDialogOpen, setIsSubtitleDialogOpen] = useState(false);
+  const [isAddingSubtitles, setIsAddingSubtitles] = useState(false);
   const { toast } = useToast();
 
   const handleFileUpload = (file: File) => {
@@ -272,6 +275,63 @@ export const VideoEditor = () => {
     }
   };
 
+  const handleAddSubtitles = () => {
+    if (!videoFile) {
+      toast({
+        title: "No Video",
+        description: "Please upload a video first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if API key is available
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Please set VITE_OPENAI_API_KEY in your .env file to use subtitle features.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubtitleDialogOpen(true);
+  };
+
+  const handleSubtitlesAdded = (subtitledVideoBlob: Blob) => {
+    try {
+      // Create a new file from the subtitled video
+      const subtitledVideoFile = new File([subtitledVideoBlob], `subtitled-${videoFile?.name || 'video.mp4'}`, {
+        type: 'video/mp4'
+      });
+      
+      // Update the video file and URL
+      setVideoFile(subtitledVideoFile);
+      const newVideoUrl = URL.createObjectURL(subtitledVideoBlob);
+      setVideoUrl(newVideoUrl);
+      
+      // Update the clips with the new video URL
+      setClips(clips.map(clip => ({
+        ...clip,
+        url: newVideoUrl
+      })));
+      
+      toast({
+        title: "Subtitles Added",
+        description: "Subtitles have been successfully added to your video."
+      });
+      
+    } catch (error) {
+      console.error('Error updating video with subtitles:', error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update video with subtitles.",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Calculate effective duration and time based on preview mode
   const effectiveDuration = previewMode ? videoProcessor.getPreviewDuration(clips) : duration;
   const effectiveCurrentTime = previewMode 
@@ -288,6 +348,8 @@ export const VideoEditor = () => {
         onTogglePreview={handleTogglePreview}
         previewMode={previewMode}
         hasClips={clips.length > 0}
+        onAddSubtitles={handleAddSubtitles}
+        isAddingSubtitles={isAddingSubtitles}
       />
       
       <div className="flex-1 flex">
@@ -349,6 +411,16 @@ export const VideoEditor = () => {
           endTime={aiEditingClip.endTime}
           videoUrl={videoUrl}
           onVideoProcessed={handleVideoProcessed}
+        />
+      )}
+      
+      {/* Subtitle Dialog */}
+      {videoFile && (
+        <SubtitleDialog
+          isOpen={isSubtitleDialogOpen}
+          onClose={() => setIsSubtitleDialogOpen(false)}
+          videoFile={videoFile}
+          onSubtitlesAdded={handleSubtitlesAdded}
         />
       )}
       
