@@ -5,6 +5,7 @@ import { MediaPanel } from './MediaPanel';
 import { ToolBar } from './ToolBar';
 import { UploadArea } from './UploadArea';
 import { ExportDialog } from './ExportDialog';
+import { AIChatBox } from './AIChatBox';
 import { videoProcessor } from '../utils/videoProcessor';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,8 @@ export const VideoEditor = () => {
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [aiEditingClip, setAiEditingClip] = useState<VideoClip | null>(null);
   const { toast } = useToast();
 
   const handleFileUpload = (file: File) => {
@@ -165,6 +168,19 @@ export const VideoEditor = () => {
     }));
   };
 
+  const handleEditWithAI = (clipId: string) => {
+    const clip = clips.find(c => c.id === clipId);
+    if (clip) {
+      setAiEditingClip(clip);
+      setIsAIChatOpen(true);
+    }
+  };
+
+  const handleCloseAIChat = () => {
+    setIsAIChatOpen(false);
+    setAiEditingClip(null);
+  };
+
   // Calculate effective duration and time based on preview mode
   const effectiveDuration = previewMode ? videoProcessor.getPreviewDuration(clips) : duration;
   const effectiveCurrentTime = previewMode 
@@ -227,7 +243,20 @@ export const VideoEditor = () => {
         onDeleteClip={handleDeleteClip}
         onClipDrag={handleClipDrag}
         previewMode={previewMode}
+        onEditWithAI={handleEditWithAI}
       />
+      
+      {/* AI Chat Box */}
+      {aiEditingClip && (
+        <AIChatBox
+          isOpen={isAIChatOpen}
+          onClose={handleCloseAIChat}
+          clipId={aiEditingClip.id}
+          clipName={aiEditingClip.name}
+          startTime={aiEditingClip.startTime}
+          endTime={aiEditingClip.endTime}
+        />
+      )}
       
       {/* Export Dialog */}
       <ExportDialog

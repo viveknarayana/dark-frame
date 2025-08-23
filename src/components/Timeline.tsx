@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Play, Pause, Scissors, Trash2 } from 'lucide-react';
+import { Play, Pause, Scissors, Trash2, Sparkles } from 'lucide-react';
 import type { VideoClip } from './VideoEditor';
 
 interface TimelineProps {
@@ -17,6 +17,7 @@ interface TimelineProps {
   onDeleteClip: (clipId: string) => void;
   onClipDrag: (clipId: string, newStartTime: number) => void;
   previewMode: boolean;
+  onEditWithAI?: (clipId: string) => void;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -31,7 +32,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   onCut,
   onDeleteClip,
   onClipDrag,
-  previewMode
+  previewMode,
+  onEditWithAI
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -223,6 +225,14 @@ export const Timeline: React.FC<TimelineProps> = ({
                       >
                         <Scissors className="mr-2 h-4 w-4" />
                         Cut at playhead
+                      </ContextMenuItem>
+                      <ContextMenuItem 
+                        onClick={() => {
+                          onEditWithAI?.(clip.id);
+                        }}
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Edit with AI
                       </ContextMenuItem>
                       <ContextMenuItem 
                         onClick={() => {
