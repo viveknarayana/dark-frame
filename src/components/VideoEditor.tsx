@@ -99,6 +99,27 @@ export const VideoEditor = () => {
     setClips(newClips);
   };
 
+  const handleDeleteClip = (clipId: string) => {
+    setClips(clips.filter(clip => clip.id !== clipId));
+    if (selectedClipId === clipId) {
+      setSelectedClipId(null);
+    }
+  };
+
+  const handleClipDrag = (clipId: string, newStartTime: number) => {
+    setClips(clips.map(clip => {
+      if (clip.id === clipId) {
+        const clipDuration = clip.endTime - clip.startTime;
+        return {
+          ...clip,
+          startTime: Math.max(0, Math.min(newStartTime, duration - clipDuration)),
+          endTime: Math.max(clipDuration, Math.min(newStartTime + clipDuration, duration))
+        };
+      }
+      return clip;
+    }));
+  };
+
   console.log('About to render VideoEditor JSX');
   
   return (
@@ -145,6 +166,9 @@ export const VideoEditor = () => {
         onClipSelect={setSelectedClipId}
         onPlay={handlePlay}
         isPlaying={isPlaying}
+        onCut={handleCut}
+        onDeleteClip={handleDeleteClip}
+        onClipDrag={handleClipDrag}
       />
     </div>
   );
