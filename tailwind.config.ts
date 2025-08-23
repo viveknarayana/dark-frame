@@ -61,7 +61,26 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				editor: {
+					bg: 'hsl(var(--editor-bg))',
+					panel: 'hsl(var(--panel-bg))',
+					timeline: 'hsl(var(--timeline-bg))',
+					playhead: 'hsl(var(--playhead))',
+					waveform: 'hsl(var(--waveform))',
+					clip: 'hsl(var(--clip))',
+					'clip-selected': 'hsl(var(--clip-selected))',
+					scrubber: 'hsl(var(--scrubber))'
 				}
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-panel': 'var(--gradient-panel)',
+				'gradient-timeline': 'var(--gradient-timeline)'
+			},
+			transitionTimingFunction: {
+				'smooth': 'var(--transition-smooth)',
+				'bounce': 'var(--transition-bounce)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
