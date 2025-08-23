@@ -125,10 +125,18 @@ export const VideoEditor = () => {
   };
 
   const handleDeleteClip = (clipId: string) => {
-    setClips(clips.filter(clip => clip.id !== clipId));
+    console.log('🗑️ Delete clip called with ID:', clipId);
+    console.log('📋 Current clips before delete:', clips);
+    
+    const newClips = clips.filter(clip => clip.id !== clipId);
+    console.log('📋 New clips after filter:', newClips);
+    
+    setClips(newClips);
     if (selectedClipId === clipId) {
       setSelectedClipId(null);
     }
+    
+    console.log('✅ Delete operation completed');
   };
 
   const handleClipDrag = (clipId: string, newStartTime: number) => {

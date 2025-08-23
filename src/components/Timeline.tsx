@@ -224,7 +224,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                       Cut at playhead
                     </ContextMenuItem>
                     <ContextMenuItem 
-                      onClick={() => onDeleteClip(clip.id)}
+                      onClick={() => {
+                        console.log('🖱️ Context menu delete clicked for clip:', clip.id);
+                        onDeleteClip(clip.id);
+                      }}
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
