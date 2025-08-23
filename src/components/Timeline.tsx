@@ -18,6 +18,7 @@ interface TimelineProps {
   onClipDrag: (clipId: string, newStartTime: number) => void;
   previewMode: boolean;
   onEditWithAI?: (clipId: string) => void;
+  onSelectFrameRange?: (startTime: number, endTime: number) => void;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -33,13 +34,20 @@ export const Timeline: React.FC<TimelineProps> = ({
   onDeleteClip,
   onClipDrag,
   previewMode,
-  onEditWithAI
+  onEditWithAI,
+  onSelectFrameRange
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragClipId, setDragClipId] = useState<string | null>(null);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
+  
+  // Frame selection state
+  const [isSelectingFrames, setIsSelectingFrames] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<number | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
+  const [isFrameSelectionMode, setIsFrameSelectionMode] = useState(false);
 
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!timelineRef.current || duration === 0 || isDragging) return;
@@ -51,8 +59,74 @@ export const Timeline: React.FC<TimelineProps> = ({
     onSeek(Math.max(0, Math.min(duration, time)));
   };
 
+  const handleTimelineMouseDown = (e: React.MouseEvent) => {
+    if (!timelineRef.current || duration === 0 || isDragging) return;
+    
+    if (isFrameSelectionMode) {
+      const rect = timelineRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = x / rect.width;
+      const time = percentage * duration;
+      const clampedTime = Math.max(0, Math.min(duration, time));
+      
+      setIsSelectingFrames(true);
+      setSelectionStart(clampedTime);
+      setSelectionEnd(clampedTime);
+    }
+  };
+
+  const handleTimelineMouseMove = (e: React.MouseEvent) => {
+    if (!timelineRef.current || duration === 0) return;
+    
+    if (isDragging && dragClipId) {
+      const deltaX = e.clientX - dragStartX;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const deltaTime = (deltaX / rect.width) * duration;
+      const newStartTime = dragStartTime + deltaTime;
+      
+      onClipDrag(dragClipId, newStartTime);
+    }
+    
+    if (isSelectingFrames && selectionStart !== null) {
+      const rect = timelineRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = x / rect.width;
+      const time = percentage * duration;
+      const clampedTime = Math.max(0, Math.min(duration, time));
+      
+      setSelectionEnd(clampedTime);
+    }
+  };
+
+  const handleTimelineMouseUp = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      setDragClipId(null);
+    }
+    
+    if (isSelectingFrames && selectionStart !== null && selectionEnd !== null) {
+      const start = Math.min(selectionStart, selectionEnd);
+      const end = Math.max(selectionStart, selectionEnd);
+      
+      if (end - start > 0.5) { // Minimum 0.5 second selection
+        onSelectFrameRange?.(start, end);
+        // toast({ // Assuming toast is available, otherwise remove this line
+        //   title: "Frame Range Selected",
+        //   description: `Selected ${formatTime(start)} - ${formatTime(end)} for AI editing`
+        // });
+      }
+      
+      setIsSelectingFrames(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
+      setIsFrameSelectionMode(false);
+    }
+  };
+
   const handleClipMouseDown = (e: React.MouseEvent, clipId: string, clipStartTime: number) => {
     e.stopPropagation();
+    if (isFrameSelectionMode) return; // Don't drag clips in frame selection mode
+    
     setIsDragging(true);
     setDragClipId(clipId);
     setDragStartX(e.clientX);
@@ -60,20 +134,17 @@ export const Timeline: React.FC<TimelineProps> = ({
     onClipSelect(clipId);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !dragClipId || !timelineRef.current || duration === 0) return;
-    
-    const deltaX = e.clientX - dragStartX;
-    const rect = timelineRef.current.getBoundingClientRect();
-    const deltaTime = (deltaX / rect.width) * duration;
-    const newStartTime = dragStartTime + deltaTime;
-    
-    onClipDrag(dragClipId, newStartTime);
+  const handleEditWithAI = (clipId: string) => {
+    // Enable frame selection mode
+    setIsFrameSelectionMode(true);
+    onClipSelect(clipId);
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    setDragClipId(null);
+  const handleCancelFrameSelection = () => {
+    setIsFrameSelectionMode(false);
+    setIsSelectingFrames(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
   };
 
   useEffect(() => {
@@ -111,6 +182,10 @@ export const Timeline: React.FC<TimelineProps> = ({
   };
 
   const playheadPosition = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const selectionStartPosition = selectionStart !== null ? (selectionStart / duration) * 100 : 0;
+  const selectionEndPosition = selectionEnd !== null ? (selectionEnd / duration) * 100 : 0;
+  const selectionLeft = Math.min(selectionStartPosition, selectionEndPosition);
+  const selectionWidth = Math.abs(selectionEndPosition - selectionStartPosition);
 
   return (
     <div className="h-48 bg-gradient-timeline border-t border-border">
@@ -134,9 +209,22 @@ export const Timeline: React.FC<TimelineProps> = ({
           {previewMode && (
             <span className="ml-2 text-primary text-xs">EDITED</span>
           )}
+          {isFrameSelectionMode && (
+            <span className="ml-2 text-primary text-xs">SELECT FRAMES</span>
+          )}
         </div>
         
         <div className="ml-auto flex items-center gap-2">
+          {isFrameSelectionMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelFrameSelection}
+              className="text-xs"
+            >
+              Cancel Selection
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -168,11 +256,29 @@ export const Timeline: React.FC<TimelineProps> = ({
           {/* Video Track */}
           <div 
             ref={timelineRef}
-            className="h-16 bg-timeline-bg rounded-lg relative cursor-pointer border border-border overflow-hidden"
+            className={`h-16 bg-timeline-bg rounded-lg relative border border-border overflow-hidden ${
+              isFrameSelectionMode ? 'cursor-crosshair' : 'cursor-pointer'
+            }`}
             onClick={handleTimelineClick}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+            onMouseDown={handleTimelineMouseDown}
+            onMouseMove={handleTimelineMouseMove}
+            onMouseUp={handleTimelineMouseUp}
           >
+            {/* Frame Selection Overlay */}
+            {isSelectingFrames && selectionStart !== null && selectionEnd !== null && (
+              <div
+                className="absolute top-1 bottom-1 bg-primary/20 border-2 border-primary/60 rounded pointer-events-none z-20"
+                style={{
+                  left: `${selectionLeft}%`,
+                  width: `${selectionWidth}%`
+                }}
+              >
+                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs whitespace-nowrap">
+                  {formatTime(Math.min(selectionStart, selectionEnd))} - {formatTime(Math.max(selectionStart, selectionEnd))}
+                </div>
+              </div>
+            )}
+
             {/* Video Clips */}
             {clips.length > 0 ? (
               clips.map((clip) => {
@@ -183,11 +289,13 @@ export const Timeline: React.FC<TimelineProps> = ({
                   <ContextMenu key={clip.id}>
                     <ContextMenuTrigger asChild>
                       <div
-                        className={`absolute top-1 h-14 rounded cursor-grab active:cursor-grabbing border-2 transition-all duration-200 ${
+                        className={`absolute top-1 h-14 rounded border-2 transition-all duration-200 ${
                           selectedClipId === clip.id
                             ? 'bg-editor-clip-selected border-primary'
                             : 'bg-editor-clip border-border hover:border-primary/50'
-                        } ${isDragging && dragClipId === clip.id ? 'z-10' : ''}`}
+                        } ${isDragging && dragClipId === clip.id ? 'z-10' : ''} ${
+                          isFrameSelectionMode ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing'
+                        }`}
                         style={{
                           left: `${clipLeft}%`,
                           width: `${clipWidth}%`
@@ -195,7 +303,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                         onMouseDown={(e) => handleClipMouseDown(e, clip.id, clip.startTime)}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (!isDragging) {
+                          if (!isDragging && !isFrameSelectionMode) {
                             onClipSelect(clip.id);
                           }
                         }}
@@ -228,7 +336,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                       </ContextMenuItem>
                       <ContextMenuItem 
                         onClick={() => {
-                          onEditWithAI?.(clip.id);
+                          handleEditWithAI(clip.id);
                         }}
                       >
                         <Sparkles className="mr-2 h-4 w-4" />

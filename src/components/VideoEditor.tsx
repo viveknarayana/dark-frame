@@ -176,6 +176,19 @@ export const VideoEditor = () => {
     }
   };
 
+  const handleSelectFrameRange = (startTime: number, endTime: number) => {
+    const clip = clips.find(c => c.id === selectedClipId);
+    if (clip) {
+      setAiEditingClip({
+        ...clip,
+        startTime,
+        endTime,
+        duration: endTime - startTime
+      });
+      setIsAIChatOpen(true);
+    }
+  };
+
   const handleCloseAIChat = () => {
     setIsAIChatOpen(false);
     setAiEditingClip(null);
@@ -244,6 +257,7 @@ export const VideoEditor = () => {
         onClipDrag={handleClipDrag}
         previewMode={previewMode}
         onEditWithAI={handleEditWithAI}
+        onSelectFrameRange={handleSelectFrameRange}
       />
       
       {/* AI Chat Box */}
