@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { X, Send, Sparkles, Camera, Download } from 'lucide-react';
+import { Veo3Service } from '../utils/veo3Service';
+import { useToast } from '@/hooks/use-toast';
 
 interface AIChatBoxProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
   videoUrl,
   onVideoProcessed
 }) => {
+  const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [startFrame, setStartFrame] = useState<string | null>(null);
@@ -88,33 +91,30 @@ export const AIChatBox: React.FC<AIChatBoxProps> = ({
     setIsProcessing(true);
     
     try {
-      // TODO: Replace with actual AI API endpoint
-      const response = await fetch('/api/ai-video-process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt,
-          startFrame,
-          endFrame,
-          startTime,
-          endTime,
-          clipId
-        }),
+      // Use the Veo3 service to generate video
+      const veo3Service = new Veo3Service();
+      const result = await veo3Service.generateVideoFromImage(prompt, startFrame, endTime - startTime);
+      
+      console.log('✅ Video generation completed successfully:', {
+        videoBlobSize: result.videoBlob.size,
+        duration: result.duration,
+        fps: result.fps
       });
 
-      if (!response.ok) {
-        throw new Error('AI processing failed');
-      }
-
-      const processedVideoBlob = await response.blob();
-      setProcessedVideo(processedVideoBlob);
+      setProcessedVideo(result.videoBlob);
       
-      // Call the callback to insert the processed video
+      // Call the callback to insert the processed video into timeline
       if (onVideoProcessed) {
-        onVideoProcessed(processedVideoBlob, startTime, endTime);
+        console.log('🔄 Calling onVideoProcessed callback...');
+        onVideoProcessed(result.videoBlob, startTime, endTime);
+        console.log('✅ onVideoProcessed callback completed');
       }
+      
+      // Show success message
+      toast({
+        title: "AI Video Generation Complete",
+        description: "The video has been processed and added to your timeline. You can now download it or continue editing.",
+      });
       
     } catch (error) {
       console.error('Error processing video with AI:', error);
